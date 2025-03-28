@@ -1,0 +1,104 @@
+# version: '3.8'  # Docker Compose 파일 형식 버전
+
+services:
+  postgres:
+    build: .
+    
+    # 컨테이너 이름 지정
+    container_name: ${CONTAINER_NAME}
+    
+    # 환경 변수 설정
+    environment:
+      # 기본 데이터베이스 설정
+      POSTGRES_USER: ${POSTGRES_USER}                # 데이터베이스 사용자
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}        # 데이터베이스 비밀번호
+      POSTGRES_DB: ${POSTGRES_DB}                    # 초기 데이터베이스 이름
+      
+      # PostgreSQL 설정
+      POSTGRES_INITDB_ARGS: ${POSTGRES_INITDB_ARGS}  # 초기화 인자
+      
+      
+      # 성능 튜닝 관련 설정
+      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS}        # 최대 연결 수
+      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS}          # 공유 버퍼 크기
+      POSTGRES_WORK_MEM: ${POSTGRES_WORK_MEM}                      # 작업 메모리
+      POSTGRES_MAINTENANCE_WORK_MEM: ${POSTGRES_MAINTENANCE_WORK_MEM} # 유지보수 작업 메모리
+      POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE} # 캐시 크기
+      
+    
+    # 포트 매핑 (호스트:컨테이너)
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    # 볼륨 설정
+    volumes:
+      # - ./custom_pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./postgres_data:/var/lib/postgresql/data  # 데이터 저장용 볼륨
+      - ./init-scripts/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./init-scripts/02-tables.sql:/docker-entrypoint-initdb.d/02-tables.sql
+      - ./init-scripts/03-seed.sql:/docker-entrypoint-initdb.d/03-seed.sql
+      - ./init-scripts/04-functions.sql:/docker-entrypoint-initdb.d/04-functions.sql # 초기화 스크립트
+      - ./postgresql.conf:/etc/postgresql/postgresql.conf  # PostgreSQL 설정 파일
+      # - ./backup:/backup  # 백업 디렉토리
+
+    # command: 
+    #   - "postgres"
+    #   - "-c"
+    #   - "hba_file=/etc/postgresql/pg_hba.conf"
+    # 네트워크 설정
+    # networks:
+    #   - app_network  # 사용할 네트워크
+    
+    # 재시작 정책
+    restart: unless-stopped
+    
+    # 리소스 제한 설정
+    deploy:
+      resources:
+        limits:
+          cpus: '${POSTGRES_CPU_LIMIT}'    # CPU 제한
+          memory: ${POSTGRES_MEM_LIMIT}    # 메모리 제한
+        reservations:
+          cpus: '${POSTGRES_CPU_RESERVATION}'    # 최소 보장 CPU
+          memory: ${POSTGRES_MEM_RESERVATION}    # 최소 보장 메모리
+    
+    # # 의존성 설정
+    # depends_on:
+    #   - redis  # redis 서비스가 먼저 시작되어야 함
+    
+    # 헬스체크 설정
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]  # 상태 확인 명령
+      interval: 10s    # 체크 간격
+      timeout: 5s      # 타임아웃
+      retries: 5       # 재시도 횟수
+      start_period: 30s  # 시작 후 대기 시간
+    
+    # 로깅 설정
+    logging:
+      driver: "json-file"  # 로그 드라이버
+      options:
+        max-size: "${LOG_MAX_SIZE}"   # 로그 파일 최대 크기
+        max-file: "${LOG_MAX_FILE}"   # 보관할 로그 파일 수
+    
+    # 컨테이너 레이블
+    labels:
+      - "com.example.description=PostgreSQL Database"
+      - "com.example.environment=production"
+    
+    # 작업 디렉토리 설정
+    working_dir: /var/lib/postgresql
+    
+    # ulimit 설정
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+# 볼륨 정의
+volumes:
+  postgres_data:
+    driver: local  # 로컬 볼륨 드라이버 사용
+# # 네트워크 정의
+# networks:
+#   app_network:
+#     driver: bridge  # 브릿지 네트워크 사용
