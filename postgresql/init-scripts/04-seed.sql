@@ -92,14 +92,45 @@ SELECT
 FROM app.orders o
 JOIN app.users u ON o.user_id = u.id;
 
--- 8. Product Images 데이터 생성
-INSERT INTO app.product_images (product_id, image_url, is_main, display_order)
+-- 8. Files 데이터 생성성
+-- Products 테이블의 기존 데이터와 매칭되는 파일 데이터 삽입
+INSERT INTO app.files 
+    (entity_type, entity_id, file_type, original_name, file_url, file_size, mime_type, is_main, display_order, description)
 SELECT 
-    id,
-    'https://example.com/images/' || name || '.jpg',
-    true,
-    1
-FROM app.products;
+    'PRODUCT',
+    p.id,
+    'IMAGE',
+    CASE 
+        WHEN c.name = '스마트폰' THEN concat('smartphone_', generate_series(1,3), '.jpg')
+        WHEN c.name = '노트북' THEN concat('laptop_', generate_series(1,3), '.jpg')
+        WHEN c.name = '티셔츠' THEN concat('tshirt_', generate_series(1,3), '.jpg')
+        WHEN c.name = '청바지' THEN concat('jeans_', generate_series(1,3), '.jpg')
+        WHEN c.name = '과일' THEN concat('fruit_', generate_series(1,3), '.jpg')
+        WHEN c.name = '채소' THEN concat('vegetable_', generate_series(1,3), '.jpg')
+    END,
+    CASE 
+        WHEN c.name = '스마트폰' THEN concat('https://cdn.shop.com/products/smartphone_', generate_series(1,3), '.jpg')
+        WHEN c.name = '노트북' THEN concat('https://cdn.shop.com/products/laptop_', generate_series(1,3), '.jpg')
+        WHEN c.name = '티셔츠' THEN concat('https://cdn.shop.com/products/tshirt_', generate_series(1,3), '.jpg')
+        WHEN c.name = '청바지' THEN concat('https://cdn.shop.com/products/jeans_', generate_series(1,3), '.jpg')
+        WHEN c.name = '과일' THEN concat('https://cdn.shop.com/products/fruit_', generate_series(1,3), '.jpg')
+        WHEN c.name = '채소' THEN concat('https://cdn.shop.com/products/vegetable_', generate_series(1,3), '.jpg')
+    END,
+    floor(random() * 1000000 + 500000), -- 500KB ~ 1.5MB
+    'image/jpeg',
+    CASE WHEN generate_series(1,3) = 1 THEN true ELSE false END,
+    generate_series(1,3),
+    CASE 
+        WHEN c.name = '스마트폰' THEN concat('스마트폰 이미지 ', generate_series(1,3))
+        WHEN c.name = '노트북' THEN concat('노트북 이미지 ', generate_series(1,3))
+        WHEN c.name = '티셔츠' THEN concat('티셔츠 이미지 ', generate_series(1,3))
+        WHEN c.name = '청바지' THEN concat('청바지 이미지 ', generate_series(1,3))
+        WHEN c.name = '과일' THEN concat('과일 이미지 ', generate_series(1,3))
+        WHEN c.name = '채소' THEN concat('채소 이미지 ', generate_series(1,3))
+    END
+FROM app.products p
+JOIN app.categories c ON p.category_id = c.id
+CROSS JOIN generate_series(1,3);
 
 -- 9. Product Options 데이터 생성
 INSERT INTO app.product_options (product_id, option_name, option_value, additional_price, stock_quantity)
@@ -126,10 +157,40 @@ FROM app.products p
 JOIN app.categories c ON p.category_id = c.id;
 
 -- 10. Coupons 데이터 생성
-INSERT INTO app.coupons (code, name, description, discount_type, discount_value, minimum_order_amount, start_date, end_date, usage_limit)
+INSERT INTO app.coupons (
+    code, 
+    coupon_name, 
+    coupon_description, 
+    discount_type, 
+    discount_value, 
+    minimum_order_amount, 
+    valid_from, 
+    valid_until, 
+    usage_limit
+)
 VALUES
-('WELCOME2024', '신규가입 쿠폰', '신규 가입 회원 대상 할인 쿠폰', 'PERCENTAGE', 10.00, 50000, CURRENT_DATE, CURRENT_DATE + INTERVAL '30 days', 1000),
-('SPRING2024', '봄맞이 할인', '봄맞이 특별 할인 쿠폰', 'FIXED', 5000.00, 30000, CURRENT_DATE, CURRENT_DATE + INTERVAL '15 days', 500);
+(
+    'WELCOME2024',
+    '신규가입 쿠폰',
+    '신규 가입 회원 대상 할인 쿠폰',
+    'PERCENTAGE',
+    10.00,
+    50000,
+    CURRENT_DATE,
+    CURRENT_DATE + INTERVAL '30 days',
+    1000
+),
+(
+    'SPRING2024',
+    '봄맞이 할인',
+    '봄맞이 특별 할인 쿠폰',
+    'FIXED',
+    5000.00,
+    30000,
+    CURRENT_DATE,
+    CURRENT_DATE + INTERVAL '15 days',
+    500
+);
 
 -- 11. User Coupons 데이터 생성
 INSERT INTO app.user_coupons (user_id, coupon_id)
@@ -178,148 +239,3 @@ SELECT
 FROM app.users u
 CROSS JOIN app.products p
 LIMIT 3;
-
--- 16. Administrators 데이터 생성
-INSERT INTO app.administrators (
-    email, 
-    password, 
-    name, 
-    role, 
-    department, 
-    employee_id, 
-    mfa_enabled,
-    last_password_change,
-    password_expire_date,
-    allowed_ip_ranges,
-    access_start_time,
-    access_end_time
-) VALUES
-(
-    'super.admin@company.com',
-    '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPqm/KPZqiX2y',
-    '김관리',
-    'SUPER_ADMIN',
-    'IT팀',
-    'EMP001',
-    true,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP + INTERVAL '90 days',
-    ARRAY['192.168.0.0/24', '10.0.0.0/8'],
-    '09:00:00',
-    '18:00:00'
-),
-(
-    'manager@company.com',
-    '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPqm/KPZqiX2y',
-    '이매니저',
-    'MANAGER',
-    '운영팀',
-    'EMP002',
-    true,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP + INTERVAL '90 days',
-    ARRAY['192.168.0.0/24'],
-    '09:00:00',
-    '18:00:00'
-),
-(
-    'operator@company.com',
-    '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPqm/KPZqiX2y',
-    '박오퍼',
-    'OPERATOR',
-    '고객지원팀',
-    'EMP003',
-    false,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP + INTERVAL '90 days',
-    ARRAY['192.168.0.0/24'],
-    '09:00:00',
-    '18:00:00'
-);
-
--- 17. Admin Permissions 데이터 생성
-INSERT INTO app.admin_permissions (name, description) VALUES
-('SYSTEM_MANAGE', '시스템 설정 관리 권한'),
-('USER_MANAGE', '사용자 관리 권한'),
-('ORDER_MANAGE', '주문 관리 권한'),
-('PRODUCT_MANAGE', '상품 관리 권한'),
-('CUSTOMER_SUPPORT', '고객 지원 권한'),
-('REPORT_VIEW', '리포트 조회 권한'),
-('PAYMENT_MANAGE', '결제 관리 권한'),
-('INVENTORY_MANAGE', '재고 관리 권한');
-
--- 18. Admin Permission Mappings 데이터 생성
-WITH admin_data AS (
-    SELECT id, role 
-    FROM app.administrators
-    WHERE role = 'SUPER_ADMIN'
-    LIMIT 1
-)
-INSERT INTO app.admin_permission_mappings (admin_id, permission_id, granted_by)
-SELECT 
-    a.id,
-    p.id,
-    ad.id as granted_by
-FROM app.administrators a
-CROSS JOIN app.admin_permissions p
-CROSS JOIN admin_data ad
-WHERE 
-    (a.role = 'SUPER_ADMIN')
-    OR (a.role = 'MANAGER' AND p.name IN ('USER_MANAGE', 'ORDER_MANAGE', 'PRODUCT_MANAGE', 'REPORT_VIEW'))
-    OR (a.role = 'OPERATOR' AND p.name IN ('CUSTOMER_SUPPORT', 'ORDER_MANAGE'));
-
--- 19. Admin Activity Logs 샘플 데이터 생성
-INSERT INTO app.admin_activity_logs (
-    admin_id,
-    action,
-    entity_type,
-    entity_id,
-    details,
-    ip_address,
-    user_agent
-)
-SELECT 
-    a.id,
-    action.name,
-    entity.type,
-    entity.id,
-    jsonb_build_object(
-        'description', '활동 내역 상세',
-        'result', 'success',
-        'additional_info', '추가 정보'
-    ),
-    '192.168.0.100',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-FROM 
-    app.administrators a
-CROSS JOIN (
-    VALUES 
-        ('상품 등록', 'product', 'P001'),
-        ('주문 승인', 'order', 'O001'),
-        ('사용자 정보 수정', 'user', 'U001')
-) AS action(name, type, id)
-CROSS JOIN (
-    VALUES 
-        ('product', 'P001'),
-        ('order', 'O001'),
-        ('user', 'U001')
-) AS entity(type, id)
-LIMIT 10;
-
--- 20. Admin Sessions 샘플 데이터 생성
-INSERT INTO app.admin_sessions (
-    admin_id,
-    token,
-    ip_address,
-    user_agent,
-    last_activity,
-    expires_at
-)
-SELECT 
-    id,
-    encode(sha256(random()::text::bytea), 'hex'),
-    '192.168.0.' || (ROW_NUMBER() OVER (ORDER BY id))::text,
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP + INTERVAL '24 hours'
-FROM app.administrators;

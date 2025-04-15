@@ -33,10 +33,7 @@ services:
     volumes:
       # - ./custom_pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
       - ./postgres_data:/var/lib/postgresql/data  # 데이터 저장용 볼륨
-      - ./init-scripts/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql
-      - ./init-scripts/02-tables.sql:/docker-entrypoint-initdb.d/02-tables.sql
-      - ./init-scripts/03-seed.sql:/docker-entrypoint-initdb.d/03-seed.sql
-      - ./init-scripts/04-functions.sql:/docker-entrypoint-initdb.d/04-functions.sql # 초기화 스크립트
+      - ./init-scripts:/docker-entrypoint-initdb.d
       - ./postgresql.conf:/etc/postgresql/postgresql.conf  # PostgreSQL 설정 파일
       # - ./backup:/backup  # 백업 디렉토리
 

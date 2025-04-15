@@ -99,14 +99,20 @@ CREATE TABLE app.reviews (
 );
 
 -- Product Images 테이블 (SERIAL)
-CREATE TABLE app.product_images (
+CREATE TABLE app.files (
     id SERIAL PRIMARY KEY,
-    product_id UUID REFERENCES app.products(id),
-    image_url VARCHAR(255) NOT NULL,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id UUID,
+    file_type VARCHAR(50) NOT NULL,
+    original_name VARCHAR(255),
+    file_url VARCHAR(255) NOT NULL,
+    file_size BIGINT,
+    mime_type VARCHAR(100),
     is_main BOOLEAN DEFAULT false,
     display_order INTEGER,
+    description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Product Options 테이블 (SERIAL)
@@ -121,22 +127,30 @@ CREATE TABLE app.product_options (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
 );
 
--- Coupons 테이블 (UUID)
+
+-- Discount Type ENUM 생성
+CREATE TYPE app.discount_type AS ENUM ('PERCENTAGE', 'FIXED');
+
+-- Coupons 테이블
 CREATE TABLE app.coupons (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     code VARCHAR(50) UNIQUE NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    discount_type VARCHAR(20) NOT NULL,
+    coupon_name VARCHAR(100) NOT NULL,        -- name -> coupon_name
+    coupon_description TEXT,                  -- description -> coupon_description
+    discount_type app.discount_type NOT NULL,
     discount_value DECIMAL(10,2) NOT NULL,
     minimum_order_amount DECIMAL(10,2),
-    start_date TIMESTAMP NOT NULL,
-    end_date TIMESTAMP NOT NULL,
+    valid_from TIMESTAMP NOT NULL,            -- start_date -> valid_from
+    valid_until TIMESTAMP NOT NULL,           -- end_date -> valid_until
     usage_limit INTEGER,
     used_count INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT valid_discount_value CHECK (
+        (discount_type = 'PERCENTAGE' AND discount_value > 0 AND discount_value <= 100) OR
+        (discount_type = 'FIXED' AND discount_value > 0)
+    )
 );
 
 -- User Coupons 테이블 (SERIAL)
@@ -182,78 +196,6 @@ CREATE TABLE app.wishlists (
     product_id UUID REFERENCES app.products(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, product_id)
-);
-
--- Administrators 테이블
-CREATE TABLE app.administrators (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    role VARCHAR(20) NOT NULL,  -- 'SUPER_ADMIN', 'MANAGER', 'OPERATOR' 등
-    department VARCHAR(50),     -- 소속 부서
-    employee_id VARCHAR(50),    -- 사원 번호
-    
-    -- 보안 관련 필드
-    mfa_enabled BOOLEAN DEFAULT false,
-    mfa_secret VARCHAR(100),
-    last_password_change TIMESTAMP,
-    password_expire_date TIMESTAMP,
-    account_locked BOOLEAN DEFAULT false,
-    login_attempts INTEGER DEFAULT 0,
-    
-    -- 접근 제어 필드
-    allowed_ip_ranges TEXT[],   -- 허용된 IP 주소 범위
-    access_start_time TIME,     -- 접근 허용 시작 시간
-    access_end_time TIME,       -- 접근 허용 종료 시간
-    
-    -- 상태 관리
-    is_active BOOLEAN DEFAULT true,
-    last_login_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
-);
-
--- 관리자 권한 테이블
-CREATE TABLE app.admin_permissions (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 관리자-권한 매핑 테이블
-CREATE TABLE app.admin_permission_mappings (
-    admin_id UUID REFERENCES app.administrators(id),
-    permission_id INTEGER REFERENCES app.admin_permissions(id),
-    granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    granted_by UUID REFERENCES app.administrators(id),
-    PRIMARY KEY (admin_id, permission_id)
-);
-
--- 관리자 활동 로그
-CREATE TABLE app.admin_activity_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    admin_id UUID REFERENCES app.administrators(id),
-    action VARCHAR(100) NOT NULL,
-    entity_type VARCHAR(50),    -- 'product', 'order', 'user' 등
-    entity_id VARCHAR(100),     -- 작업 대상 ID
-    details JSONB,              -- 상세 활동 내역
-    ip_address VARCHAR(45),     -- IPv6 지원
-    user_agent TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 관리자 세션 관리
-CREATE TABLE app.admin_sessions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    admin_id UUID REFERENCES app.administrators(id),
-    token VARCHAR(255) UNIQUE NOT NULL,
-    ip_address VARCHAR(45),
-    user_agent TEXT,
-    last_activity TIMESTAMP,
-    expires_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 인덱스 생성
@@ -305,8 +247,9 @@ CREATE INDEX idx_reviews_rating ON app.reviews(rating);
 CREATE INDEX idx_reviews_date ON app.reviews(created_at);
 
 -- Product Images 테이블 인덱스
-CREATE INDEX idx_product_images_product ON app.product_images(product_id);
-CREATE INDEX idx_product_images_main ON app.product_images(is_main);
+CREATE INDEX idx_files_entity ON app.files(entity_type, entity_id);
+CREATE INDEX idx_files_type ON app.files(file_type);
+CREATE INDEX idx_files_url ON app.files(file_url);
 
 -- Product Options 테이블 인덱스
 CREATE INDEX idx_product_options_product ON app.product_options(product_id);
@@ -336,19 +279,3 @@ CREATE INDEX idx_returns_status ON app.product_returns(return_status);
 CREATE INDEX idx_wishlists_user ON app.wishlists(user_id);
 CREATE INDEX idx_wishlists_product ON app.wishlists(product_id);
 
--- Administrators 테이블 인덱스
-CREATE INDEX idx_administrators_email ON app.administrators(email);
-CREATE INDEX idx_administrators_role ON app.administrators(role);
-CREATE INDEX idx_administrators_active ON app.administrators(is_active);
-CREATE INDEX idx_administrators_department ON app.administrators(department);
-
--- Admin Activity Logs 테이블 인덱스
-CREATE INDEX idx_activity_logs_admin ON app.admin_activity_logs(admin_id);
-CREATE INDEX idx_activity_logs_action ON app.admin_activity_logs(action);
-CREATE INDEX idx_activity_logs_entity ON app.admin_activity_logs(entity_type, entity_id);
-CREATE INDEX idx_activity_logs_date ON app.admin_activity_logs(created_at);
-
--- Admin Sessions 테이블 인덱스
-CREATE INDEX idx_admin_sessions_admin ON app.admin_sessions(admin_id);
-CREATE INDEX idx_admin_sessions_token ON app.admin_sessions(token);
-CREATE INDEX idx_admin_sessions_expires ON app.admin_sessions(expires_at);
